@@ -1,3 +1,5 @@
+# Yeoman Volto App development
+
 ### Defensive settings for make:
 #     https://tech.davis-hansson.com/p/make/
 SHELL:=bash
@@ -8,6 +10,17 @@ SHELL:=bash
 MAKEFLAGS+=--warn-undefined-variables
 MAKEFLAGS+=--no-builtin-rules
 
+# Update the versions depending on your project requirements | Last Updated 2022-07-24
+DOCKER_IMAGE=plone/plone-backend:6.0.0b1
+KGS=plone.volto==4.0.0a7
+NODEBIN = ./node_modules/.bin
+
+# Project settings
+
+DIR=$(shell basename $$(pwd))
+
+# Recipe snippets for reuse
+
 # We like colors
 # From: https://coderwall.com/p/izxssa/colored-makefile-for-golang-projects
 RED=`tput setaf 1`
@@ -15,20 +28,23 @@ GREEN=`tput setaf 2`
 RESET=`tput sgr0`
 YELLOW=`tput setaf 3`
 
-DOCKER_HUB_USER=cihanandac_ME
-IMAGE_NAME=${DOCKER_HUB_USER}/project-frontend:latest
 
+# Top-level targets
+.PHONY: all
+all: project
 
-# Add the following 'help' target to your Makefile
-# And add help text after each target name starting with '\#\#'
+.PHONY: start-test-backend
+start-test-backend: ## Start Test Plone Backend
+	@echo "$(GREEN)==> Start Test Plone Backend$(RESET)"
+	docker run -i --rm -e ZSERVER_HOST=0.0.0.0 -e ZSERVER_PORT=55001 -p 55001:55001 -e ADDONS='$(KGS) plone.app.robotframework==2.0.0a3 plone.app.testing==7.0.0a2 plone.app.contenttypes' -e APPLY_PROFILES=plone.app.contenttypes:plone-content,plone.restapi:default,plone.volto:default-homepage -e CONFIGURE_PACKAGES=plone.app.contenttypes,plone.restapi,plone.volto,plone.volto.cors $(DOCKER_IMAGE) ./bin/robot-server plone.app.robotframework.testing.PLONE_ROBOT_TESTING
+	## KGS in case you need a Plone 5.2 series (comment/remove above line):
+	# docker run -i --rm -e ZSERVER_HOST=0.0.0.0 -e ZSERVER_PORT=55001 -p 55001:55001 -e ADDONS='$(KGS) plone.app.robotframework==2.0.0a3 plone.app.contenttypes' -e APPLY_PROFILES=plone.app.contenttypes:plone-content,plone.restapi:default,plone.volto:default-homepage -e CONFIGURE_PACKAGES=plone.app.contenttypes,plone.restapi,plone.volto,plone.volto.cors $(DOCKER_IMAGE) ./bin/robot-server plone.app.robotframework.testing.PLONE_ROBOT_TESTING
+
+.PHONY: start-backend-docker
+start-backend-docker:		## Starts a Docker-based backend
+	@echo "$(GREEN)==> Start Docker-based Plone Backend$(RESET)"
+	docker run -it --rm --name=backend -p 8080:8080 -e SITE=Plone -e ADDONS='$(KGS)' $(DOCKER_IMAGE)
+
 .PHONY: help
-help: ## This help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
-.PHONY: build-image
-build-image:  ## Build Docker Image
-	@docker build . -t $(IMAGE_NAME) -f Dockerfile
-
-.PHONY: release-image
-release-image:  ## Release Docker Image
-	@docker push $(IMAGE_NAME)
+help:		## Show this help.
+	@echo -e "$$(grep -hE '^\S+:.*##' $(MAKEFILE_LIST) | sed -e 's/:.*##\s*/:/' -e 's/^\(.\+\):\(.*\)/\\x1b[36m\1\\x1b[m:\2/' | column -c2 -t -s :)"
